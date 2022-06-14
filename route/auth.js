@@ -3,7 +3,7 @@ const authRoute = express.Router();
 const employee = require('../api/employee');
 const uploadFile = require('../middleware/multerStorage')
 
-authRoute.post('/emplyee' , employee.add )
+authRoute.post('/emplyee' ,uploadFile.single('file'), employee.add )
 authRoute.post('/employeeFile' , uploadFile.single('file'), employee.uploadFile )
 authRoute.get('/emplyeePhone' , employee.emplyeeByPhone )
 authRoute.get('/emplyeePhoto' , uploadFile.single('file'), employee.emplyeePhoto )

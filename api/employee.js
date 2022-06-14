@@ -1,6 +1,5 @@
 const mongoDb = require('mongoose')
 const emplyee = require('../model/employee')
-const csvtojson = require('convert-csv-to-json')
 const fs = require('fs')
 const { json } = require('body-parser')
 const path = require('path')
@@ -8,8 +7,12 @@ require('dotenv').config();
 const nodemailer = require("nodemailer");
 const { PAGE , LIMIT ,SERVICE, GMAILNAME , GMAILPASSWORD } = process.env;
 exports.add=async (req,res)=>{
-    console.log(typeof req.body);
-    const {employeeTitle , name,mail,phone,status , cnic } =req.body;
+    const ext = (req.file.originalname).split('.');
+    if(ext[1] != 'csv'){
+        return res.status(400).send({ success: false, message: 'please provide a csv' });
+    }
+    if(!req.file){
+        const {employeeTitle , name,mail,phone,status , cnic } =req.body;
     if (!name) {
         return res.status(400).send({ success: false, message: 'please enter name' })
     }
@@ -46,6 +49,13 @@ exports.add=async (req,res)=>{
         return res.status(400).send({ success: false, message:error })
         
     }
+    }
+    var datafile;
+    fs.createReadStream(req.file.path).on('data' , (data)=>{
+        datafile = data;
+    }).on('end', ()=>{
+        const {employeeTitle , name , mail , phone} = datafile
+    })
 }
 
 exports.uploadFile = async (req,res)=>{
@@ -78,10 +88,10 @@ exports.uploadFile = async (req,res)=>{
 
 exports.emplyeeByPhone = async (req,res)=>{
     const {number} = req.query
+    var newNumber;
     try {
-        var newNumber;
-        if(number[0]&&number[1]&&number[2] != "*"){
-            newNumber = number[0]+number[1]+number[2];
+        if(number[1]&&number[2]&&number[3] != "*"){
+            newNumber = number[1]+number[2]+number[3];
         }
         if(number[4]&&number[5]&&number[6] !="*"){
             newNumber = number[4]+number[5]+number[6];
@@ -89,11 +99,13 @@ exports.emplyeeByPhone = async (req,res)=>{
         if(number[7]&&number[8]&&number[9]&&number[10] !="*"){
             newNumber = number[7]+number[8]+number[9]+number[10];
         }
-        const findEmployByNumber = await emplyee.find({phone : {
-            $regex : newNumber 
-        }}).select("name , mail ,phone , employeeTitle").skip(PAGE * LIMIT).limit(LIMIT);
-        
-       return res.status(200).send({ success: true , message :findEmployByNumber  });
+        // console.log(newNumber);
+        const findEmploy = await emplyee.find({phone : {$regex :newNumber} , status : true}).select("employeeTitle name mail phone").limit(LIMIT);
+
+        if(findEmploy.length == 0){
+            return res.status(400).send({ success: false , message :"no employee record found" });
+        }else{
+       return res.status(200).send({ success: true , message :findEmploy  });}
     } catch (error) {
         return res.status(400).send({ success:false , error:error });
     }}
@@ -113,7 +125,7 @@ exports.emplyeePhoto= async(req,res)=>{
       }
       try {
         const path = ('media/profiles/' + req.file.filename)
-        const profileAdded = await emplyee.findOneAndUpdate({mail : mail}, {profile : path})
+        const profileAdded = await emplyee.findOneAndUpdate({mail : mail}, {profile : path}).select("profile")
         
         profileAdded.save()
         return res.status(200).send({ success: false, message: profileAdded});
@@ -126,12 +138,12 @@ exports.emplyeePhoto= async(req,res)=>{
 exports.emplyeeBymail = async (req,res)=>{
     const { mail} = req.query
     try{
-    const employeeByMail = await emplyee.find({mail:mail}).select("name , mail ,phone , employeeTitle")
+    const employeeByMail = await emplyee.find({mail:mail , status : true}).select("name , mail ,phone , employeeTitle")
 
-   if( employeeByMail.status == true && employeeByMail){
-    return res.status(200).send({ success: false, message:employeeByMail });
+   if(employeeByMail.length == 0){
+    return res.status(400).send({ success: false, message :"mail not exist or wrong mail"});
    }else{
-    return res.status(400).send({ success: false, message :"mo user employee"});
+     return res.status(200).send({ success: false, message:employeeByMail });
    }
     }
    catch (error) {
